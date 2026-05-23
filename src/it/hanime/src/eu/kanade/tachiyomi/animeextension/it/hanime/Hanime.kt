@@ -22,6 +22,7 @@ import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
+
 class Hanime : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override val name = "Hanime.tv"
