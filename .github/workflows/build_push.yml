@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4 # v4
         with:
           ref: main
-          token: ${{ github.token }}
+         
           
       - name: Get number of modules
         run: |
@@ -85,7 +85,7 @@ jobs:
         uses: actions/checkout@v4 # v4
         with:
           ref: main
-          token: ${{ github.token }}
+         
 
       - name: Set up JDK
         uses: actions/setup-java@v4 # v4
@@ -165,7 +165,7 @@ jobs:
         with:
           ref: main
           path: main
-         token: ${{ github.token }}
+        
           
       - name: Create repo artifacts
         run: |
@@ -180,7 +180,7 @@ jobs:
         uses: actions/checkout@v4 # v4
         with:
           repository: Kohi-den/extensions-source  #just to initialize the folder
-          token: ${{ github.token }}
+         
           ref: main
           path: repo
 
