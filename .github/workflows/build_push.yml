@@ -93,9 +93,8 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Prepare signing key
-        run: |
-          echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
+      - name: Skip signing
+        run: echo "Skipping signing"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4 # v4
@@ -117,7 +116,7 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: chmod +x ./gradlew && ./gradlew -p src assembleRelease
+       run: chmod +x ./gradlew && ./gradlew -p src assembleDebug
 
       - name: Store build cache
         uses: actions/cache/save@v3
@@ -138,74 +137,4 @@ jobs:
       - name: Clean up CI files
         run: rm signingkey.jks
 
-  publish_repo:
-    name: Publish repo
-    needs:
-      - build_individual
-    if: ${{ github.repository == 'Kohi-den/extensions-source' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup rsync
-        run: |
-          sudo apt-get update && sudo apt install rsync -y
-      
-      - name: Download APK artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ~/apk-artifacts
-          
-      - name: Set up JDK
-        uses: actions/setup-java@v4 # v4
-        with:
-          java-version: 17
-          distribution: temurin
-                
-      - name: Checkout main branch
-        uses: actions/checkout@v4 # v4
-        with:
-          ref: main
-          path: main
-        
-          
-      - name: Create repo artifacts
-        run: |
-          cd main
-          python ./.github/scripts/move-apks.py
-          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/aniyomiorg/aniyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
-          curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
-          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
-          python ./.github/scripts/create-repo.py    
 
-      - name: Checkout repo branch
-        uses: actions/checkout@v4 # v4
-        with:
-          repository: Kohi-den/extensions-source  #just to initialize the folder
-         
-          ref: main
-          path: repo
-
-      - name: Set Forgejo remote URL
-        run: |
-          cd repo
-          git remote set-url origin https://${{ secrets.FORGEJO_USERNAME }}:${{ secrets.FORGEJO_TOKEN }}@kohiden.xyz/Kohi-den/extensions.git
-
-      - name: Pull latest changes
-        run: |
-          cd repo
-          git pull --rebase origin main    
-
-      - name: Sync repo
-        run: |
-          rsync -a --delete --exclude .git --exclude .gitignore main/repo/ repo --exclude README.md --exclude repo.json
-
-      - name: Increase buffer size
-        run: |
-          git config --global http.postBuffer 157286400
-
-      - name: Deploy repo
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: "Update extensions repo"
-          cwd: "./repo"
-          committer_name: Kohi-den-bot
-          committer_email: kohi-den-bot@noreply.localhost
