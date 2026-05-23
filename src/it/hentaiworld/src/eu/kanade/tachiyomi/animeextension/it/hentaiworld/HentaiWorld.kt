@@ -11,27 +11,25 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.getPreferencesLazy
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-class HentaiWorld : ParsedAnimeHttpSource(), ConfigurableAnimeSource {
+class HentaiWorld :
+    ParsedAnimeHttpSource(),
+    ConfigurableAnimeSource {
 
     override val name = "HentaiWorld"
     override val baseUrl = "https://www.hentaiworld.me"
     override val lang = "it"
     override val supportsLatest = true
 
-private val preferences by lazy {
-    val app = Class.forName("android.app.ActivityThread")
-        .getMethod("currentApplication")
-        .invoke(null) as android.app.Application
-   app.getSharedPreferences("source_${id}", 0)
-}
+    private val preferences by getPreferencesLazy()
 
-    // ── Popular ──────────────────────────────────────────────────────────────
+    // ── Popular ───────────────────────────────────────────────────────────────
 
     override fun popularAnimeRequest(page: Int) =
         GET("$baseUrl/archive?sort=views&page=$page")
@@ -50,7 +48,7 @@ private val preferences by lazy {
     override fun popularAnimeNextPageSelector() =
         "a[rel=next], li.page-item:last-child:not(.disabled) a"
 
-    // ── Latest ───────────────────────────────────────────────────────────────
+    // ── Latest ────────────────────────────────────────────────────────────────
 
     override fun latestUpdatesRequest(page: Int) =
         GET("$baseUrl/archive?sort=date&page=$page")
@@ -59,12 +57,14 @@ private val preferences by lazy {
     override fun latestUpdatesFromElement(e: Element) = popularAnimeFromElement(e)
     override fun latestUpdatesNextPageSelector() = popularAnimeNextPageSelector()
 
-    // ── Search ───────────────────────────────────────────────────────────────
+    // ── Search ────────────────────────────────────────────────────────────────
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         val url = "$baseUrl/archive".toHttpUrl().newBuilder()
         if (query.isNotBlank()) url.addQueryParameter("search", query)
-        filters.forEach { f -> if (f is SelectFilter) f.addTo(url) }
+        filters.forEach { f ->
+            if (f is SelectFilter) f.addTo(url)
+        }
         url.addQueryParameter("page", page.toString())
         return GET(url.build().toString())
     }
@@ -73,7 +73,7 @@ private val preferences by lazy {
     override fun searchAnimeFromElement(e: Element) = popularAnimeFromElement(e)
     override fun searchAnimeNextPageSelector() = popularAnimeNextPageSelector()
 
-    // ── Details ──────────────────────────────────────────────────────────────
+    // ── Details ───────────────────────────────────────────────────────────────
 
     override fun animeDetailsParse(document: Document) = SAnime.create().apply {
         title = document.selectFirst("h1")?.text() ?: ""
@@ -83,17 +83,18 @@ private val preferences by lazy {
         description = document.selectFirst("div#trama,div.trama,div.description")?.text()
             ?: document.selectFirst("meta[name='description']")?.attr("content")
         val alt = document.selectFirst("h2")?.text()?.takeIf { it.isNotBlank() }
-        if (alt != null && !title.contains(alt, true))
+        if (alt != null && !title.contains(alt, true)) {
             description = (description ?: "") + "\n\nTitolo alternativo: $alt"
+        }
         val txt = document.text()
         status = when {
             txt.contains("In corso") -> SAnime.ONGOING
-            txt.contains("Finito")   -> SAnime.COMPLETED
-            else                     -> SAnime.UNKNOWN
+            txt.contains("Finito") -> SAnime.COMPLETED
+            else -> SAnime.UNKNOWN
         }
     }
 
-    // ── Episodes ─────────────────────────────────────────────────────────────
+    // ── Episodes ──────────────────────────────────────────────────────────────
 
     override fun episodeListParse(response: Response): List<SEpisode> =
         response.asJsoup().select("a[href*='/watch/']")
@@ -119,10 +120,7 @@ private val preferences by lazy {
         val doc = response.asJsoup()
         val ref = headers.newBuilder().add("Referer", doc.location()).build()
 
-        // 1) AnimeWorld-family API con data-id
-        doc.selectFirst("[data-id],[data-episode-id]")
-            ?.attr("data-id").orEmpty()
-            .ifBlank { doc.selectFirst("[data-episode-id]")?.attr("data-episode-id") ?: "" }
+        doc.selectFirst("[data-id],[data-episode-id]")?.attr("data-id").orEmpty()
             .takeIf { it.isNotBlank() }
             ?.let { id ->
                 runCatching {
@@ -132,17 +130,14 @@ private val preferences by lazy {
                 }
             }
 
-        // 2) JWPlayer / VideoJS nel sorgente HTML
         Regex("""file\s*:\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']""")
             .find(doc.html())?.groupValues?.get(1)
             ?.let { return resolveUrl(it, ref) }
 
-        // 3) Tag <source> o <video src>
         doc.selectFirst("source[src],video[src]")?.attr("abs:src")
             ?.takeIf { it.isNotBlank() }
             ?.let { return resolveUrl(it, ref) }
 
-        // 4) iframe → analisi interna
         doc.selectFirst("iframe[src]")?.attr("abs:src")?.let { src ->
             runCatching {
                 val inner = client.newCall(GET(src, ref)).execute().asJsoup()
@@ -182,38 +177,89 @@ private val preferences by lazy {
 
     // ── Filters ───────────────────────────────────────────────────────────────
 
-    abstract class SelectFilter(name: String, val param: String, val labels: Array<String>, val vals: Array<String>)
-        : AnimeFilter.Select<String>(name, labels) {
-        fun addTo(b: okhttp3.HttpUrl.Builder) { if (state != 0) b.addQueryParameter(param, vals[state]) }
+    abstract class SelectFilter(
+        name: String,
+        val param: String,
+        val filterLabels: Array<String>,
+        val filterValues: Array<String>,
+    ) : AnimeFilter.Select<String>(name, filterLabels) {
+        fun addTo(b: okhttp3.HttpUrl.Builder) {
+            if (state != 0) b.addQueryParameter(param, filterValues[state])
+        }
     }
 
-    private class GenreFilter : SelectFilter("Genere", "genre",
-        arrayOf("Tutti","3D","Ahegao","Anal","BDSM","Big Boobs","Blow Job","Bondage","Boob Job","Censored","Comedy","Cosplay","Creampie","Dark Skin","Facial","Fantasy","Filmed","Foot Job","Futanari","Gangbang","Glasses","Hand Job","Harem","Horror","Incest","Lactation","Maid","Masturbation","Milf","Mind Break","Mind Control","Monster","Nekomimi","NTR","Nurse","Orgy","Plot","POV","Pregnant","Public Sex","Rimjob","Scat","School Girl","Softcore","Swimsuit","Teacher","Tentacle","Threesome","Toys","Trap","Tsundere","Ugly Bastard","Uncensored","Vanilla","Virgin","Watersports","X-Ray","Yaoi","Yuri"),
-        arrayOf("","3d","ahegao","anal","bdsm","big-boobs","blow-job","bondage","boob-job","censored","comedy","cosplay","creampie","dark-skin","facial","fantasy","filmed","foot-job","futanari","gangbang","glasses","hand-job","harem","horror","incest","lactation","maid","masturbation","milf","mind-break","mind-control","monster","nekomimi","ntr","nurse","orgy","plot","pov","pregnant","public-sex","rimjob","scat","school-girl","softcore","swimsuit","teacher","tentacle","threesome","toys","trap","tsundere","ugly-bastard","uncensored","vanilla","virgin","watersports","x-ray","yaoi","yuri"))
+    private class GenreFilter : SelectFilter(
+        "Genere",
+        "genre",
+        arrayOf(
+            "Tutti", "3D", "Ahegao", "Anal", "BDSM", "Big Boobs", "Blow Job", "Bondage",
+            "Boob Job", "Censored", "Comedy", "Cosplay", "Creampie", "Dark Skin", "Facial",
+            "Fantasy", "Filmed", "Foot Job", "Futanari", "Gangbang", "Glasses", "Hand Job",
+            "Harem", "Horror", "Incest", "Lactation", "Maid", "Masturbation", "Milf",
+            "Mind Break", "Mind Control", "Monster", "Nekomimi", "NTR", "Nurse", "Orgy",
+            "Plot", "POV", "Pregnant", "Public Sex", "Rimjob", "Scat", "School Girl",
+            "Softcore", "Swimsuit", "Teacher", "Tentacle", "Threesome", "Toys", "Trap",
+            "Tsundere", "Ugly Bastard", "Uncensored", "Vanilla", "Virgin", "Watersports",
+            "X-Ray", "Yaoi", "Yuri",
+        ),
+        arrayOf(
+            "", "3d", "ahegao", "anal", "bdsm", "big-boobs", "blow-job", "bondage",
+            "boob-job", "censored", "comedy", "cosplay", "creampie", "dark-skin", "facial",
+            "fantasy", "filmed", "foot-job", "futanari", "gangbang", "glasses", "hand-job",
+            "harem", "horror", "incest", "lactation", "maid", "masturbation", "milf",
+            "mind-break", "mind-control", "monster", "nekomimi", "ntr", "nurse", "orgy",
+            "plot", "pov", "pregnant", "public-sex", "rimjob", "scat", "school-girl",
+            "softcore", "swimsuit", "teacher", "tentacle", "threesome", "toys", "trap",
+            "tsundere", "ugly-bastard", "uncensored", "vanilla", "virgin", "watersports",
+            "x-ray", "yaoi", "yuri",
+        ),
+    )
 
-    private class YearFilter : SelectFilter("Anno", "year",
-        arrayOf("Tutti","2026","2025","2024","2023","2022","2021","2020","2019","2018","2017","2016","2015","2014","2013","2012","2011","2010","2009","2008","2007","2006","2005","2004","2003","2002","2001","2000","1999","1998","1997","1996"),
-        arrayOf("","2026","2025","2024","2023","2022","2021","2020","2019","2018","2017","2016","2015","2014","2013","2012","2011","2010","2009","2008","2007","2006","2005","2004","2003","2002","2001","2000","1999","1998","1997","1996"))
+    private class YearFilter : SelectFilter(
+        "Anno",
+        "year",
+        arrayOf(
+            "Tutti", "2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019",
+            "2018", "2017", "2016", "2015", "2014", "2013", "2012", "2011", "2010",
+            "2009", "2008", "2007", "2006", "2005", "2004", "2003", "2002", "2001",
+            "2000", "1999", "1998", "1997", "1996",
+        ),
+        arrayOf(
+            "", "2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019",
+            "2018", "2017", "2016", "2015", "2014", "2013", "2012", "2011", "2010",
+            "2009", "2008", "2007", "2006", "2005", "2004", "2003", "2002", "2001",
+            "2000", "1999", "1998", "1997", "1996",
+        ),
+    )
 
-    private class StatusFilter : SelectFilter("Stato", "status",
-        arrayOf("Tutti","Finito","In corso","Non rilasciato","Droppato"),
-        arrayOf("","Finito","In corso","Non rilasciato","Droppato"))
+    private class StatusFilter : SelectFilter(
+        "Stato",
+        "status",
+        arrayOf("Tutti", "Finito", "In corso", "Non rilasciato", "Droppato"),
+        arrayOf("", "Finito", "In corso", "Non rilasciato", "Droppato"),
+    )
 
-    private class TypeFilter : SelectFilter("Tipo", "type",
-        arrayOf("Tutti","OVA","ONA","Special"),
-        arrayOf("","OVA","ONA","Special"))
+    private class LangFilter : SelectFilter(
+        "Lingua",
+        "language",
+        arrayOf("Tutte", "SUB ITA", "SUB ENG", "DUB ITA"),
+        arrayOf("", "SUB ITA", "SUB ENG", "DUB ITA"),
+    )
 
-    private class LangFilter : SelectFilter("Lingua", "language",
-        arrayOf("Tutte","SUB ITA","SUB ENG","DUB ITA"),
-        arrayOf("","SUB ITA","SUB ENG","DUB ITA"))
-
-    private class SortFilter : SelectFilter("Ordina per", "sort",
-        arrayOf("Standard","Ultime aggiunte","Più visti","A-Z","Voto maggiore"),
-        arrayOf("","date","views","alphabetical","rating"))
+    private class SortFilter : SelectFilter(
+        "Ordina per",
+        "sort",
+        arrayOf("Standard", "Ultime aggiunte", "Più visti", "A-Z", "Voto maggiore"),
+        arrayOf("", "date", "views", "alphabetical", "rating"),
+    )
 
     override fun getFilterList() = AnimeFilterList(
         AnimeFilter.Header("I filtri vengono ignorati con la ricerca testuale"),
-        GenreFilter(), YearFilter(), StatusFilter(), TypeFilter(), LangFilter(), SortFilter(),
+        GenreFilter(),
+        YearFilter(),
+        StatusFilter(),
+        LangFilter(),
+        SortFilter(),
     )
 
     // ── Preferences ───────────────────────────────────────────────────────────
@@ -222,9 +268,10 @@ private val preferences by lazy {
         ListPreference(screen.context).apply {
             key = "preferred_quality"
             title = "Qualità preferita"
-            entries = arrayOf("1080p","720p","480p","360p","240p")
-            entryValues = arrayOf("1080","720","480","360","240")
-            setDefaultValue("1080"); summary = "%s"
+            entries = arrayOf("1080p", "720p", "480p", "360p", "240p")
+            entryValues = arrayOf("1080", "720", "480", "360", "240")
+            setDefaultValue("1080")
+            summary = "%s"
             setOnPreferenceChangeListener { _, v -> preferences.edit().putString(key, v as String).commit() }
         }.also(screen::addPreference)
     }
