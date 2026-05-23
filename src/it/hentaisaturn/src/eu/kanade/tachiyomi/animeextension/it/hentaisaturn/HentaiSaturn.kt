@@ -21,6 +21,7 @@ import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+
 class HentaiSaturn : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
 
     override val name = "HentaiSaturn"
