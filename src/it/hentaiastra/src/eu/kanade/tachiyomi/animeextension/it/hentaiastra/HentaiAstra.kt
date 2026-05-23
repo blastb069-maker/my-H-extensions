@@ -142,11 +142,9 @@ class HentaiAstra :
         val ref = headers.newBuilder().add("Referer", doc.location()).build()
         val videoList = mutableListOf<Video>()
 
-        val html = doc.html()
         Regex("""file\s*:\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']""")
-            .find(html)?.groupValues?.get(1)?.let {
-                videoList.addAll(resolveUrl(it, ref))
-            }
+            .find(doc.html())?.groupValues?.get(1)
+            ?.let { videoList.addAll(resolveUrl(it, ref)) }
         if (videoList.isNotEmpty()) return videoList
 
         doc.selectFirst("source[src], video[src]")?.attr("abs:src")
@@ -154,19 +152,17 @@ class HentaiAstra :
             ?.let { videoList.addAll(resolveUrl(it, ref)) }
         if (videoList.isNotEmpty()) return videoList
 
-        doc.selectFirst("[data-src*='.m3u8'],[data-src*='.mp4'],[data-file]")
-            ?.let { el ->
-                val u = el.attr("data-src").ifBlank { el.attr("data-file") }
-                if (u.isNotBlank()) videoList.addAll(resolveUrl(u, ref))
-            }
+        doc.selectFirst("[data-src*='.m3u8'],[data-src*='.mp4'],[data-file]")?.let { el ->
+            val u = el.attr("data-src").ifBlank { el.attr("data-file") }
+            if (u.isNotBlank()) videoList.addAll(resolveUrl(u, ref))
+        }
         if (videoList.isNotEmpty()) return videoList
 
         doc.selectFirst("iframe[src]")?.attr("abs:src")?.let { iframeSrc ->
             runCatching {
                 val inner = client.newCall(GET(iframeSrc, ref)).execute().asJsoup()
-                val innerHtml = inner.html()
                 Regex("""file\s*:\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']""")
-                    .find(innerHtml)?.groupValues?.get(1)
+                    .find(inner.html())?.groupValues?.get(1)
                     ?.let { videoList.addAll(resolveUrl(it, ref)) }
                 if (videoList.isEmpty()) {
                     inner.selectFirst("source[src],video[src]")?.attr("abs:src")
@@ -207,11 +203,11 @@ class HentaiAstra :
     abstract class SelectFilter(
         name: String,
         val param: String,
-        val labels: Array<String>,
-        val values: Array<String>,
-    ) : AnimeFilter.Select<String>(name, labels) {
+        val filterLabels: Array<String>,
+        val filterValues: Array<String>,
+    ) : AnimeFilter.Select<String>(name, filterLabels) {
         fun addTo(b: okhttp3.HttpUrl.Builder) {
-            if (state != 0) b.addQueryParameter(param, values[state])
+            if (state != 0) b.addQueryParameter(param, filterValues[state])
         }
     }
 
