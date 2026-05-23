@@ -116,7 +116,7 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-       run: chmod +x ./gradlew && ./gradlew -p src assembleDebug
+        run: chmod +x ./gradlew && ./gradlew -p src assembleDebug 
 
       - name: Store build cache
         uses: actions/cache/save@v3
