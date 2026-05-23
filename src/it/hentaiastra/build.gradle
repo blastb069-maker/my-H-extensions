@@ -1,0 +1,7 @@
+ext {
+    extName        = 'HentaiAstra'
+    extClass       = '.HentaiAstra'
+    extVersionCode = 1
+    isNsfw         = true
+}
+apply from: "$rootDir/common.gradle"
