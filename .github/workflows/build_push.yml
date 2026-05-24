@@ -121,26 +121,30 @@ jobs:
     needs: build_individual
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.CI_COMMIT_TOKEN }}
-
       - name: Download APKs
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-          path: repo/apk
+          path: ~/apk-artifacts
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up JDK
+        uses: actions/setup-java@v4
         with:
-          python-version: '3.11'
+          java-version: 17
+          distribution: temurin
 
-      - name: Generate repo index
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Create repo artifacts
         run: |
-          python3 .github/scripts/generate_index.py
+          python3 ./.github/scripts/move-apks.py
+          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/aniyomiorg/aniyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
+          curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
+          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
+          python3 ./.github/scripts/create-repo.py
 
       - name: Deploy to repo branch
         uses: peaceiris/actions-gh-pages@v4
@@ -148,7 +152,7 @@ jobs:
           github_token: ${{ secrets.CI_COMMIT_TOKEN }}
           publish_dir: ./repo
           publish_branch: repo
-          keep_files: true
+          keep_files: false
           user_name: "github-actions[bot]"
           user_email: "github-actions[bot]@users.noreply.github.com"
           commit_message: "ci: auto-build ${{ github.sha }}"
