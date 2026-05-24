@@ -1,32 +1,33 @@
-## Donation
+Donation
 
 Support this project by helping keep the servers up
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/T6T3124BZN)
+ko-fi
 
-## Guide
+Guide
 
-just paste this into your anime repo 
-```
-https://kohiden.xyz/Kohi-den/extensions/raw/branch/main/index.min.json
-```
-If your interested in installing just the apks they can be found [Here](https://kohiden.xyz/Kohi-den/extensions/src/branch/main/apk)
+Paste this URL into Aniyomi / Anikku (Browse → Extension repos → Add):
 
-## Support Server
+https://raw.githubusercontent.com/blastb069-maker/my-H-extensions/repo/index.min.json
 
-Join the [Discord](https://discord.gg/vut4mmXQzU) for updates and announcements
+Note: repo is the branch name, not a folder on main.
+
+Built APKs are published on the repo branch after each successful CI run on main.
+
+Support Server
+
+Join the Discord for updates and announcements
 
 and please check the discord BEFORE making an issue 
 
-## Contributing
+Contributing
 
-[Template](https://github.com/aniyomiorg/aniyomi-extensions/blob/master/CONTRIBUTING.md)
+Template
 
-## Disclaimer
+Disclaimer
 
 This project does not have any affiliation with the content providers available.
 This project is not affiliated with Aniyomi.
 Don't ask for help about these extensions at the official support means of Aniyomi.
 
 All credits to the codebase goes to the original contributors.
-
