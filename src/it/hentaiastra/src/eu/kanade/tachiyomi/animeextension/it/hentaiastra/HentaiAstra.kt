@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.it.hentaiastra
 
+import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -11,12 +12,13 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
-import keiyoushi.utils.getPreferencesLazy
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class HentaiAstra :
     ParsedAnimeHttpSource(),
@@ -27,7 +29,9 @@ class HentaiAstra :
     override val lang = "it"
     override val supportsLatest = true
 
-    private val preferences by getPreferencesLazy()
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<android.app.Application>().getSharedPreferences("source_$id", 0x0000)
+    }
 
     override fun headersBuilder() = super.headersBuilder()
         .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -190,7 +194,7 @@ class HentaiAstra :
     }
 
     override fun List<Video>.sort(): List<Video> {
-        val q = preferences.getString("preferred_quality", "1080")!!
+        val q = preferences.getString("preferred_quality", "1080") ?: "1080"
         return sortedByDescending { it.quality.contains(q) }
     }
 
@@ -259,7 +263,9 @@ class HentaiAstra :
             entryValues = arrayOf("1080", "720", "480", "360", "240")
             setDefaultValue("1080")
             summary = "%s"
-            setOnPreferenceChangeListener { _, v -> preferences.edit().putString(key, v as String).commit() }
+            setOnPreferenceChangeListener { _, v ->
+                preferences.edit().putString(key, v as String).commit()
+            }
         }.also(screen::addPreference)
     }
 }
