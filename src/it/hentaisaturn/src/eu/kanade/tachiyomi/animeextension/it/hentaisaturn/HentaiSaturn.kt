@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.it.hentaisaturn
 
+import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -11,12 +12,13 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
-import keiyoushi.utils.getPreferencesLazy
 import okhttp3.Headers
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class HentaiSaturn :
     ParsedAnimeHttpSource(),
@@ -27,7 +29,9 @@ class HentaiSaturn :
     override val lang = "it"
     override val supportsLatest = true
 
-    private val preferences by getPreferencesLazy()
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<android.app.Application>().getSharedPreferences("source_$id", 0x0000)
+    }
 
     private fun fmt(t: String) = t
         .replace("(ITA) ITA", "Dub ITA")
@@ -172,7 +176,9 @@ class HentaiSaturn :
         return if (url.endsWith("playlist.m3u8")) {
             val pl = client.newCall(GET(url)).execute().body.string()
             val qs = Regex("""(?<=RESOLUTION=)\d+x\d+""").findAll(pl).map { it.value.substringAfter('x') + "p" }.toList()
-            val ls = Regex("""(?<=\n)./.+""").findAll(pl).map { url.substringBefore("playlist.m3u8") + it.value.substringAfter("./") }.toList()
+            val ls = Regex("""(?<=\n)./.+""").findAll(pl).map {
+                url.substringBefore("playlist.m3u8") + it.value.substringAfter("./")
+            }.toList()
             ls.mapIndexed { i, l -> Video(l, qs.getOrElse(i) { "${i + 1}" }, l) }
         } else {
             listOf(Video(url, "Qualità predefinita", url, headers = Headers.headersOf("Referer", ref)))
@@ -180,7 +186,7 @@ class HentaiSaturn :
     }
 
     override fun List<Video>.sort(): List<Video> {
-        val q = preferences.getString("preferred_quality", "1080")!!
+        val q = preferences.getString("preferred_quality", "1080") ?: "1080"
         return sortedByDescending { it.quality.contains(q) }
     }
 
@@ -256,7 +262,9 @@ class HentaiSaturn :
             entryValues = arrayOf("1080", "720", "480", "360", "240", "144")
             setDefaultValue("1080")
             summary = "%s"
-            setOnPreferenceChangeListener { _, v -> preferences.edit().putString(key, v as String).commit() }
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(key, newValue as String).commit()
+            }
         }.also(screen::addPreference)
     }
 }
