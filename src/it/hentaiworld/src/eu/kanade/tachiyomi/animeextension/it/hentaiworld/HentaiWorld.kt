@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animeextension.it.hentaiworld
 
+import android.content.SharedPreferences
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -11,12 +12,13 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
-import keiyoushi.utils.getPreferencesLazy
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class HentaiWorld :
     ParsedAnimeHttpSource(),
@@ -27,7 +29,9 @@ class HentaiWorld :
     override val lang = "it"
     override val supportsLatest = true
 
-    private val preferences by getPreferencesLazy()
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<android.app.Application>().getSharedPreferences("source_$id", 0x0000)
+    }
 
     // ── Popular ───────────────────────────────────────────────────────────────
 
@@ -156,7 +160,8 @@ class HentaiWorld :
         if (!url.contains(".m3u8")) return listOf(Video(url, "MP4", url, headers = ref))
         return runCatching {
             val playlist = client.newCall(GET(url, ref)).execute().body.string()
-            val qualities = Regex("""RESOLUTION=\d+x(\d+)""").findAll(playlist).map { "${it.groupValues[1]}p" }.toList()
+            val qualities = Regex("""RESOLUTION=\d+x(\d+)""").findAll(playlist)
+                .map { "${it.groupValues[1]}p" }.toList()
             val links = Regex("""(?m)^(?!#)[^\s]+""").findAll(playlist).map { it.value }.toList()
             if (links.isEmpty()) return listOf(Video(url, "HLS", url, headers = ref))
             links.mapIndexed { i, link ->
@@ -167,7 +172,7 @@ class HentaiWorld :
     }
 
     override fun List<Video>.sort(): List<Video> {
-        val pref = preferences.getString("preferred_quality", "1080")!!
+        val pref = preferences.getString("preferred_quality", "1080") ?: "1080"
         return sortedByDescending { it.quality.contains(pref) }
     }
 
@@ -272,7 +277,9 @@ class HentaiWorld :
             entryValues = arrayOf("1080", "720", "480", "360", "240")
             setDefaultValue("1080")
             summary = "%s"
-            setOnPreferenceChangeListener { _, v -> preferences.edit().putString(key, v as String).commit() }
+            setOnPreferenceChangeListener { _, v ->
+                preferences.edit().putString(key, v as String).commit()
+            }
         }.also(screen::addPreference)
     }
 }
