@@ -106,3 +106,34 @@ with (REPO_DIR / "index.json").open("w", encoding="utf-8") as f:
 
 with (REPO_DIR / "index.min.json").open("w", encoding="utf-8") as f:
     json.dump(index_min_data, f, ensure_ascii=False, separators=(",", ":"))
+
+apk_files = sorted(REPO_APK_DIR.glob("*.apk"))
+if not apk_files:
+    raise SystemExit("No APK files found in repo/apk")
+
+cert_output = subprocess.check_output(
+    ["keytool", "-printcert", "-jarfile", apk_files[0]],
+    text=True,
+)
+
+fingerprint_line = next(
+    line for line in cert_output.splitlines() if "SHA256:" in line
+)
+signing_key_fingerprint = (
+    fingerprint_line.split("SHA256:", 1)[1].strip().replace(":", "").lower()
+)
+
+repo_meta = {
+    "meta": {
+        "name": "my-H-extensions",
+        "shortName": "H-Extensions",
+        "website": "https://github.com/blastb069-maker/my-H-extensions",
+        "signingKeyFingerprint": signing_key_fingerprint,
+    }
+}
+
+with (REPO_DIR / "repo.json").open("w", encoding="utf-8") as f:
+    json.dump(repo_meta, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+
+print(f"Wrote repo.json (signingKeyFingerprint={signing_key_fingerprint})")
