@@ -140,7 +140,7 @@ jobs:
 
       - name: Generate repo index
         run: |
-          python3 .github/scripts/generate_repo.py repo/apk repo
+          python3 scripts/generate_index.py
 
       - name: Deploy to repo branch
         uses: peaceiris/actions-gh-pages@v4
