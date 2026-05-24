@@ -82,16 +82,26 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Prune incomplete extensions
+        run: chmod +x ./.github/scripts/prune-incomplete-extensions.sh && ./.github/scripts/prune-incomplete-extensions.sh
+
+      - name: Remove stale it.hanime build outputs
+        run: |
+          rm -rf src/it/hanime
+          find src -type f -name 'aniyomi-it.hanime*.apk' -delete
+
       - name: Restore build cache
         uses: actions/cache/restore@v3
         with:
           path: |
             src/**/build
             !src/**/build/outputs
-          key: build-cache-${{ github.sha }}-${{ matrix.chunk }}
+          key: build-cache-v2-${{ github.sha }}-${{ matrix.chunk }}
           restore-keys: |
-            build-cache-${{ github.sha }}-
-            build-cache-
+            build-cache-v2-${{ github.sha }}-
+
+      - name: Purge cached it.hanime intermediates
+        run: rm -rf src/it/hanime
 
       - name: Build extensions
         env:
@@ -107,13 +117,16 @@ jobs:
           path: |
             src/**/build
             !src/**/build/outputs
-          key: build-cache-${{ github.sha }}-${{ matrix.chunk }}
+          key: build-cache-v2-${{ github.sha }}-${{ matrix.chunk }}
+
+      - name: Drop stale APKs before upload
+        run: find . -type f -name 'aniyomi-it.hanime*.apk' -delete
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: "individual-apks-${{ matrix.chunk }}"
-          path: "**/*.apk"
+          path: "src/**/build/outputs/apk/**/*.apk"
           retention-days: 1
 
   publish:
@@ -140,7 +153,12 @@ jobs:
 
       - name: Create repo artifacts
         run: |
+          chmod +x ./.github/scripts/prune-incomplete-extensions.sh
+          ./.github/scripts/prune-incomplete-extensions.sh
+          find ~/apk-artifacts -type f -name 'aniyomi-it.hanime*.apk' -delete
           python3 ./.github/scripts/move-apks.py
+          find repo/apk -type f -name 'aniyomi-it.hanime*.apk' -delete
+          echo "APK count: $(find repo/apk -maxdepth 1 -name '*.apk' | wc -l)"
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/aniyomiorg/aniyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
           curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
           java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
