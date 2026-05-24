@@ -33,29 +33,35 @@ class HentaiWorld :
         Injekt.get<android.app.Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
+    override fun headersBuilder() = super.headersBuilder()
+        .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+        .add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .add("Accept-Language", "it-IT,it;q=0.9,en;q=0.5")
+        .add("Referer", "$baseUrl/")
+
     // ── Popular ───────────────────────────────────────────────────────────────
 
     override fun popularAnimeRequest(page: Int) =
-        GET("$baseUrl/archive?sort=views&page=$page")
+        GET("$baseUrl/archive?sort=views&page=$page", headers)
 
-    override fun popularAnimeSelector() = "div.card"
+    override fun popularAnimeSelector() = "article:has(a[href^='/hentai/'])"
 
     override fun popularAnimeFromElement(element: Element) = SAnime.create().apply {
         val link = element.selectFirst("a[href^='/hentai/']")!!
         setUrlWithoutDomain(link.attr("href"))
-        title = link.attr("title").ifBlank {
-            element.selectFirst("h3,h4,.card-title")?.text() ?: link.text()
+        title = element.selectFirst("h3")?.text()?.trim().orEmpty().ifBlank {
+            link.attr("title").ifBlank { link.selectFirst("span.sr-only")?.text()?.removePrefix("Guarda ")?.trim() ?: link.text() }
         }
         thumbnail_url = element.selectFirst("img")?.attr("abs:src")
     }
 
     override fun popularAnimeNextPageSelector() =
-        "a[rel=next], li.page-item:last-child:not(.disabled) a"
+        "a[rel=next], a[href*='page=']:contains(»)"
 
     // ── Latest ────────────────────────────────────────────────────────────────
 
     override fun latestUpdatesRequest(page: Int) =
-        GET("$baseUrl/archive?sort=date&page=$page")
+        GET("$baseUrl/archive?sort=date&page=$page", headers)
 
     override fun latestUpdatesSelector() = popularAnimeSelector()
     override fun latestUpdatesFromElement(e: Element) = popularAnimeFromElement(e)
@@ -70,7 +76,7 @@ class HentaiWorld :
             if (f is SelectFilter) f.addTo(url)
         }
         url.addQueryParameter("page", page.toString())
-        return GET(url.build().toString())
+        return GET(url.build().toString(), headers)
     }
 
     override fun searchAnimeSelector() = popularAnimeSelector()
@@ -133,6 +139,10 @@ class HentaiWorld :
                         ?.let { return resolveUrl(it, ref) }
                 }
             }
+
+        Regex("""(?:videoUrl|const\s+videoUrl)\s*=\s*['"]([^'"]+\.(?:m3u8|mp4)[^'"]*)['"]""")
+            .find(doc.html())?.groupValues?.get(1)
+            ?.let { return resolveUrl(it, ref) }
 
         Regex("""file\s*:\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']""")
             .find(doc.html())?.groupValues?.get(1)
